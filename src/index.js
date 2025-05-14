@@ -5,7 +5,8 @@ import connectDB from "./db/index.js";
 // Load environment variables from .env file
 dotenv.config();
 
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT;
+
 // console.log("🔐 JWT_SECRET in use:", process.env.JWT_SECRET);
 
 // Connect to database and start server
