@@ -95,11 +95,20 @@ app.get("/api/v1/health", (req, res) => {
 app.use("/api/v1/uploads", express.static(path.join(__dirname, "uploads")));
 
 // API Routes
-app.use("/api/v1/admin", adminRouter);         // Admin routes (login, logout, etc)
+app.use("/api/v1/admin", adminRouter);         // Admin routes
 app.use("/api/v1/gallery", galleryRouter);     // Gallery routes
 app.use("/api/v1/projects", projectRouter);    // Project routes
 app.use("/api/v1/donation-details", donationRouter); // Donation routes
 app.use("/api/v1/contact", contactRouter);     // Contact routes
+
+// Add a specific test route for contact
+app.get("/api/v1/contact-test", (req, res) => {
+    res.json({
+        status: "ok",
+        message: "Contact route is accessible",
+        timestamp: new Date().toISOString()
+    });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -115,6 +124,21 @@ app.use((err, req, res, next) => {
         success: false,
         message: isProduction ? 'Internal server error' : err.message,
         error: isProduction ? undefined : err
+    });
+});
+
+// Handle 404 errors for unmatched routes
+app.use((req, res) => {
+    console.log('404 Not Found:', {
+        path: req.path,
+        method: req.method,
+        origin: req.get('origin')
+    });
+    res.status(404).json({
+        success: false,
+        message: 'Route not found',
+        path: req.path,
+        method: req.method
     });
 });
 

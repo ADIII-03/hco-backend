@@ -157,79 +157,98 @@ class ContactController {
     }
 
     async sendContactForm(req, res) {
-        // Sanitize input
-        const sanitizedData = this.sanitizeInput(req.body);
-        
-        // Validate input
-        const validationErrors = this.validateInput(sanitizedData);
-        if (validationErrors.length > 0) {
-            throw new ApiError(400, validationErrors.join(', '));
-        }
-
-        const { name, email, message } = sanitizedData;
-
         try {
-            await this.verifyEmailConfig();
+            console.log('Processing contact form submission:', {
+                body: req.body,
+                origin: req.get('origin')
+            });
 
-            const adminMailOptions = {
-                from: {
-                    name: 'HCO Contact Form',
-                    address: process.env.ADMIN_EMAIL
-                },
-                to: process.env.ADMIN_EMAIL,
-                subject: `New Contact Form Message from ${name}`,
-                html: this.generateAdminEmailTemplate(name, email, message),
-                headers: {
-                    'X-Environment': process.env.NODE_ENV,
-                    'X-Origin': process.env.CORS_ORIGIN
-                }
-            };
-
-            const adminInfo = await this.transporter.sendMail(adminMailOptions);
-
-            if (process.env.NODE_ENV === 'development') {
-                console.log('Admin email sent:', adminInfo);
+            // Sanitize input
+            const sanitizedData = this.sanitizeInput(req.body);
+            
+            // Validate input
+            const validationErrors = this.validateInput(sanitizedData);
+            if (validationErrors.length > 0) {
+                console.log('Validation errors:', validationErrors);
+                throw new ApiError(400, validationErrors.join(', '));
             }
 
-            const userMailOptions = {
-                from: {
-                    name: 'Humanity Club Organization',
-                    address: process.env.ADMIN_EMAIL
-                },
-                to: email,
-                subject: 'Thank you for contacting HCO',
-                html: this.generateUserConfirmationTemplate(name),
-                headers: {
-                    'X-Environment': process.env.NODE_ENV,
-                    'X-Origin': process.env.CORS_ORIGIN
+            const { name, email, message } = sanitizedData;
+
+            try {
+                await this.verifyEmailConfig();
+
+                const adminMailOptions = {
+                    from: {
+                        name: 'HCO Contact Form',
+                        address: process.env.ADMIN_EMAIL
+                    },
+                    to: process.env.ADMIN_EMAIL,
+                    subject: `New Contact Form Message from ${name}`,
+                    html: this.generateAdminEmailTemplate(name, email, message),
+                    headers: {
+                        'X-Environment': process.env.NODE_ENV,
+                        'X-Origin': process.env.CORS_ORIGIN
+                    }
+                };
+
+                console.log('Sending admin email...');
+                const adminInfo = await this.transporter.sendMail(adminMailOptions);
+                console.log('Admin email sent:', adminInfo.messageId);
+
+                const userMailOptions = {
+                    from: {
+                        name: 'Humanity Club Organization',
+                        address: process.env.ADMIN_EMAIL
+                    },
+                    to: email,
+                    subject: 'Thank you for contacting HCO',
+                    html: this.generateUserConfirmationTemplate(name),
+                    headers: {
+                        'X-Environment': process.env.NODE_ENV,
+                        'X-Origin': process.env.CORS_ORIGIN
+                    }
+                };
+
+                console.log('Sending user confirmation email...');
+                const userInfo = await this.transporter.sendMail(userMailOptions);
+                console.log('User confirmation email sent:', userInfo.messageId);
+
+                return res.status(200).json(
+                    new ApiResponse(
+                        200,
+                        { name, email },
+                        'Message sent successfully! We will get back to you soon.'
+                    )
+                );
+            } catch (emailError) {
+                console.error('Email sending error:', {
+                    error: emailError,
+                    message: emailError.message,
+                    code: emailError.code
+                });
+
+                if (emailError.code === 'EAUTH') {
+                    throw new ApiError(500, 'Failed to authenticate with email server');
                 }
-            };
 
-            await this.transporter.sendMail(userMailOptions);
-
-            return res.status(200).json(
-                new ApiResponse(
-                    200,
-                    { name, email },
-                    'Message sent successfully! We will get back to you soon.'
-                )
-            );
+                throw new ApiError(
+                    500,
+                    process.env.NODE_ENV === 'production'
+                        ? 'Failed to send message. Please try again later.'
+                        : `Failed to send email: ${emailError.message}`
+                );
+            }
         } catch (error) {
-            console.error('Email error:', {
+            console.error('Contact form error:', {
                 message: error.message,
                 stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
                 origin: process.env.CORS_ORIGIN
             });
 
-            if (error.code === 'EAUTH') {
-                throw new ApiError(500, 'Failed to authenticate with email server');
-            }
-
             throw new ApiError(
-                500,
-                process.env.NODE_ENV === 'production'
-                    ? 'Failed to send message. Please try again later.'
-                    : `Failed to send email: ${error.message}`
+                error.statusCode || 500,
+                error.message || 'Failed to process contact form'
             );
         }
     }

@@ -36,14 +36,35 @@ router.use((req, res, next) => {
 });
 
 // Contact routes
-router.post('/send', contactLimiter, asyncHandler(contactController.sendContactForm.bind(contactController)));
+router.post('/send', contactLimiter, (req, res, next) => {
+    console.log('Received contact form submission:', {
+        body: req.body,
+        path: req.path,
+        method: req.method
+    });
+    return contactController.sendContactForm.bind(contactController)(req, res, next);
+});
+
+// Test route to verify contact endpoint is working
+router.get('/test', (req, res) => {
+    res.json({
+        status: 'success',
+        message: 'Contact route is working',
+        timestamp: new Date().toISOString()
+    });
+});
 
 // Health check route for contact module
 router.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         message: 'Contact module is running',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        endpoints: {
+            send: '/send',
+            health: '/health',
+            test: '/test'
+        }
     });
 });
 
