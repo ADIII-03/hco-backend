@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { ApiResponse } from '../utils/ApiResponse.js';
+import { ApiError } from '../utils/ApiError.js';
 import nodemailer from 'nodemailer';
 
 const router = Router();
@@ -8,7 +10,7 @@ router.post('/send', asyncHandler(async (req, res) => {
     const { name, email, message } = req.body;
 
     if (!name || !email || !message) {
-        throw new Error('Please provide all required fields');
+        throw new ApiError(400, 'Please provide all required fields');
     }
 
     // Create transporter
@@ -17,6 +19,9 @@ router.post('/send', asyncHandler(async (req, res) => {
         auth: {
             user: process.env.EMAIL_USER,
             pass: process.env.EMAIL_PASS
+        },
+        tls: {
+            rejectUnauthorized: false
         }
     });
 
@@ -34,13 +39,15 @@ router.post('/send', asyncHandler(async (req, res) => {
         `
     };
 
+    // Verify email configuration
+    await transporter.verify();
+
     // Send email
     await transporter.sendMail(mailOptions);
 
-    res.status(200).json({
-        success: true,
-        message: 'Message sent successfully!'
-    });
+    return res.status(200).json(
+        new ApiResponse(200, { name, email }, 'Message sent successfully!')
+    );
 }));
 
 export default router; 
