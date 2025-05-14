@@ -6,6 +6,7 @@ import adminRouter from "./routes/admin.route.js";
 import galleryRouter from "./routes/gallery.route.js";
 import projectRouter from "./routes/project.routes.js";
 import donationRouter from "./routes/donation.routes.js";
+import contactRouter from "./routes/contact.route.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -21,18 +22,45 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // CORS Configuration
-const corsOrigin = process.env.NODE_ENV === 'production'
-    ? 'https://hc-opage.vercel.app'
-    : process.env.CORS_ORIGIN || 'http://localhost:5173';
+const corsOrigins = process.env.CORS_ORIGIN?.split(',').map(origin => origin.trim()) || [];
+const isProduction = process.env.NODE_ENV === 'production';
 
 app.use(cors({
-    origin: corsOrigin,
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        if (corsOrigins.indexOf(origin) !== -1 || !isProduction) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'Accept',
+        'Origin',
+        'X-Requested-With'
+    ],
+    exposedHeaders: ['Set-Cookie'],
+    maxAge: 600 // Cache preflight requests for 10 minutes
 }));
 
 app.use(cookieParser());
+
+// Security headers
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    if (isProduction) {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+});
 
 // Root route
 app.get('/', (req, res) => {
@@ -40,12 +68,14 @@ app.get('/', (req, res) => {
         message: 'Welcome to HCO Backend API',
         status: 'active',
         timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV,
         endpoints: {
             health: '/api/v1/health',
             projects: '/api/v1/projects',
             gallery: '/api/v1/gallery',
             donations: '/api/v1/donation-details',
-            admin: '/api/v1/admin'
+            admin: '/api/v1/admin',
+            contact: '/api/v1/contact'
         }
     });
 });
@@ -56,7 +86,8 @@ app.get("/api/v1/health", (req, res) => {
         status: "ok",
         message: "Server is running",
         timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV
+        environment: process.env.NODE_ENV,
+        corsOrigins: isProduction ? undefined : corsOrigins
     });
 });
 
@@ -68,13 +99,22 @@ app.use("/api/v1/admin", adminRouter);         // Admin routes (login, logout, e
 app.use("/api/v1/gallery", galleryRouter);     // Gallery routes
 app.use("/api/v1/projects", projectRouter);    // Project routes
 app.use("/api/v1/donation-details", donationRouter); // Donation routes
+app.use("/api/v1/contact", contactRouter);     // Contact routes
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({
+    console.error('Error:', {
+        message: err.message,
+        stack: isProduction ? undefined : err.stack,
+        path: req.path,
+        method: req.method,
+        origin: req.get('origin')
+    });
+    
+    res.status(err.statusCode || 500).json({
         success: false,
-        message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+        message: isProduction ? 'Internal server error' : err.message,
+        error: isProduction ? undefined : err
     });
 });
 
