@@ -2,7 +2,9 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import Admin from "../models/admin.model.js";
+import jwt from "jsonwebtoken";
 
+// Generate access and refresh tokens
 const generateAccessAndRefreshToken = async (adminId) => {
   const admin = await Admin.findById(adminId);
   if (!admin) {
@@ -18,6 +20,7 @@ const generateAccessAndRefreshToken = async (adminId) => {
   return { accessToken, refreshToken };
 };
 
+// Admin Login
 const adminLogin = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
@@ -25,21 +28,25 @@ const adminLogin = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Email and password are required");
   }
 
-  const admin = await Admin.findOne({ email }).select("+password");
-
+  // Find admin by email
+  const admin = await Admin.findOne({ email });
   if (!admin) {
-    throw new ApiError(401, "Invalid credentials");
+    throw new ApiError(401, "Invalid email or password");
   }
 
+  // Verify password
   const isPasswordValid = await admin.comparePassword(password);
   if (!isPasswordValid) {
-    throw new ApiError(401, "Invalid credentials");
+    throw new ApiError(401, "Invalid email or password");
   }
 
+  // Generate tokens
   const { accessToken, refreshToken } = await generateAccessAndRefreshToken(admin._id);
 
+  // Get admin data without sensitive fields
   const loggedInAdmin = await Admin.findById(admin._id).select("-password -refreshToken");
 
+  // Set cookie options
   const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -48,6 +55,7 @@ const adminLogin = asyncHandler(async (req, res) => {
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   };
 
+  // Send response
   return res
     .status(200)
     .cookie("accessToken", accessToken, cookieOptions)
@@ -55,11 +63,13 @@ const adminLogin = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(200, {
         user: loggedInAdmin,
-        accessToken
-      }, "Login successful")
+        accessToken,
+        refreshToken
+      }, "Admin logged in successfully")
     );
 });
 
+// Admin Logout
 const adminLogout = asyncHandler(async (req, res) => {
   await Admin.findByIdAndUpdate(
     req.user._id,
@@ -71,36 +81,43 @@ const adminLogout = asyncHandler(async (req, res) => {
   const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-    path: "/"
+    sameSite: "Strict"
   };
 
   return res
     .status(200)
     .clearCookie("accessToken", cookieOptions)
     .clearCookie("refreshToken", cookieOptions)
-    .json(new ApiResponse(200, {}, "Logged out successfully"));
+    .json(new ApiResponse(200, {}, "Admin logged out successfully"));
 });
 
+// Admin Register (protected, only for development)
 const adminRegister = asyncHandler(async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, username, password, role = "admin" } = req.body;
 
-  if (!name || !email || !password) {
+  if (!name || !email || !username || !password) {
     throw new ApiError(400, "All fields are required");
   }
 
-  const existingAdmin = await Admin.findOne({ email });
+  // Check if admin already exists
+  const existingAdmin = await Admin.findOne({
+    $or: [{ email }, { username }]
+  });
 
   if (existingAdmin) {
-    throw new ApiError(409, "Admin already exists with this email");
+    throw new ApiError(409, "Admin with this email or username already exists");
   }
 
+  // Create new admin
   const admin = await Admin.create({
     name,
     email: email.toLowerCase(),
-    password
+    username: username.toLowerCase(),
+    password,
+    role
   });
 
+  // Get created admin without sensitive fields
   const createdAdmin = await Admin.findById(admin._id).select("-password -refreshToken");
 
   if (!createdAdmin) {
