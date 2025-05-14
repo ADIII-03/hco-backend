@@ -10,113 +10,78 @@ import contactRouter from "./routes/contact.route.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Setup __dirname in ES Module
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables
 dotenv.config();
 
-// Initialize express app
 export const app = express();
 
 // Middleware
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-app.use(cookieParser());
 
 // CORS Configuration
-const corsOptions = {
-  origin: process.env.CORS_ORIGIN || 'https://hc-opage.vercel.app',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
-  exposedHeaders: ['Set-Cookie']
-};
+const corsOrigin = process.env.NODE_ENV === 'production'
+    ? 'https://hc-opage.vercel.app'
+    : process.env.CORS_ORIGIN || 'http://localhost:5173';
 
-// Apply CORS to all routes
-app.use(cors(corsOptions));
+app.use(cors({
+    origin: corsOrigin,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+}));
 
-// Handle OPTIONS preflight for all routes
-app.options('*', cors(corsOptions));
+app.use(cookieParser());
 
-// Request Logging Middleware
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
-  next();
+// Root route
+app.get('/', (req, res) => {
+    res.json({
+        message: 'Welcome to HCO Backend API',
+        status: 'active',
+        timestamp: new Date().toISOString(),
+        endpoints: {
+            health: '/api/v1/health',
+            projects: '/api/v1/projects',
+            gallery: '/api/v1/gallery',
+            donations: '/api/v1/donation-details',
+            admin: '/api/v1/admin'
+        }
+    });
 });
 
-// Root Route
-app.get("/", (req, res) => {
-  res.json({
-    message: "Welcome to HCO Backend API",
-    status: "active",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-    endpoints: {
-      health: "/api/v1/health",
-      projects: "/api/v1/projects",
-      gallery: "/api/v1/gallery",
-      donations: "/api/v1/donation-details",
-      admin: "/api/v1/admin",
-      contact: "/api/v1/contact"
-    }
-  });
-});
-
-// Health Check Route
+// Health check route
 app.get("/api/v1/health", (req, res) => {
-  res.json({
-    status: "ok",
-    message: "Server is running",
-    environment: process.env.NODE_ENV,
-    timestamp: new Date().toISOString(),
-    cors: {
-      origin: corsOptions.origin,
-      methods: corsOptions.methods.join(', ')
-    }
-  });
+    res.json({
+        status: "ok",
+        message: "Server is running",
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV
+    });
 });
 
-// Serve static uploads
+// Serve static files from uploads directory
 app.use("/api/v1/uploads", express.static(path.join(__dirname, "uploads")));
 
 // API Routes
-app.use("/api/v1/admin", adminRouter);
-app.use("/api/v1/gallery", galleryRouter);
-app.use("/api/v1/projects", projectRouter);
-app.use("/api/v1/donation-details", donationRouter);
-app.use("/api/v1/contact", contactRouter);
+app.use("/api/v1/admin", adminRouter);         // Admin routes (login, logout, etc)
+app.use("/api/v1/gallery", galleryRouter);     // Gallery routes
+app.use("/api/v1/projects", projectRouter);    // Project routes
+app.use("/api/v1/donation-details", donationRouter); // Donation routes
+app.use("/api/v1/contact", contactRouter);     // Contact routes
 
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Route ${req.originalUrl} not found`
-  });
-});
-
-// Error Handler
+// Error handling middleware
 app.use((err, req, res, next) => {
-  console.error("Error:", {
-    message: err.message,
-    stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
-    path: req.path,
-    method: req.method,
-    origin: req.headers.origin
-  });
-
-  res.status(err.statusCode || 500).json({
-    success: false,
-    message: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack })
-  });
+    console.error(err.stack);
+    res.status(500).json({
+        success: false,
+        message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    });
 });
 
-// Start Server
 const PORT = process.env.PORT || 8000;
+
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV}`);
-  console.log(`CORS enabled for: ${corsOptions.origin}`);
+    console.log(`Server is running on port ${PORT}`);
 });
