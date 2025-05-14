@@ -16,11 +16,6 @@ dotenv.config();
 
 export const app = express();
 
-// Basic health check route (before all middleware)
-app.get("/api/v1/health", (req, res) => {
-    res.json({ status: "ok", message: "Server is running" });
-});
-
 // Middleware
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -39,14 +34,40 @@ app.use(cors({
 
 app.use(cookieParser());
 
+// Root route
+app.get('/', (req, res) => {
+    res.json({
+        message: 'Welcome to HCO Backend API',
+        status: 'active',
+        timestamp: new Date().toISOString(),
+        endpoints: {
+            health: '/api/v1/health',
+            projects: '/api/v1/projects',
+            gallery: '/api/v1/gallery',
+            donations: '/api/v1/donation-details',
+            admin: '/api/v1/admin'
+        }
+    });
+});
+
+// Health check route
+app.get("/api/v1/health", (req, res) => {
+    res.json({
+        status: "ok",
+        message: "Server is running",
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV
+    });
+});
+
 // Serve static files from uploads directory
 app.use("/api/v1/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Routes
-app.use("/api/v1/admin", adminRouter);
-app.use("/api/v1/gallery", galleryRouter);
-app.use("/api/v1", projectRouter);
-app.use("/api/v1", donationRouter);
+// API Routes
+app.use("/api/v1/admin", adminRouter);         // Admin routes (login, logout, etc)
+app.use("/api/v1/gallery", galleryRouter);     // Gallery routes
+app.use("/api/v1/projects", projectRouter);    // Project routes
+app.use("/api/v1/donation-details", donationRouter); // Donation routes
 
 // Error handling middleware
 app.use((err, req, res, next) => {
