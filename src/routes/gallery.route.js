@@ -31,6 +31,7 @@ router.get("/", asyncHandler(async (req, res) => {
     images.forEach(image => {
         if (projects[image.projectIndex]) {
             projects[image.projectIndex].images.push({
+                _id: image._id,
                 url: image.imageUrl,
                 publicId: image.publicId,
                 description: image.description,
@@ -91,26 +92,58 @@ router.delete("/:imageId", isAuthenticated, asyncHandler(async (req, res) => {
     const { imageId } = req.params;
     const { forceDelete } = req.body;
 
+    // Find the image first
     const image = await Gallery.findById(imageId);
     if (!image) {
-        throw new ApiError(404, "Image not found");
+        throw new ApiError(404, "Image not found in database");
     }
 
-    if (!forceDelete) {
-        try {
-            await deleteFromCloudinary(image.publicId);
-        } catch (error) {
-            if (!error.message.includes('not found')) {
+    try {
+        // Try to delete from Cloudinary first
+        if (!forceDelete) {
+            const cloudinaryResponse = await deleteFromCloudinary(image.publicId);
+            console.log('Cloudinary deletion response:', cloudinaryResponse);
+            
+            if (cloudinaryResponse.result !== 'ok' && cloudinaryResponse.result !== 'not_found') {
                 throw new ApiError(500, "Failed to delete image from cloud storage");
             }
         }
+
+        // If Cloudinary deletion was successful or skipped, delete from database
+        await Gallery.findByIdAndDelete(imageId);
+
+        return res.status(200).json(
+            new ApiResponse(200, {
+                deletedImage: {
+                    _id: image._id,
+                    publicId: image.publicId,
+                    imageUrl: image.imageUrl
+                }
+            }, "Image deleted successfully")
+        );
+    } catch (error) {
+        console.error('Image deletion error:', {
+            imageId,
+            publicId: image.publicId,
+            error: error.message
+        });
+
+        // If it's a not found error from Cloudinary, we can still delete from database
+        if (error.message.includes('not_found') || forceDelete) {
+            await Gallery.findByIdAndDelete(imageId);
+            return res.status(200).json(
+                new ApiResponse(200, {
+                    deletedImage: {
+                        _id: image._id,
+                        publicId: image.publicId,
+                        imageUrl: image.imageUrl
+                    }
+                }, "Image deleted from database (cloud resource not found)")
+            );
+        }
+
+        throw new ApiError(500, `Failed to delete image: ${error.message}`);
     }
-
-    await Gallery.findByIdAndDelete(imageId);
-
-    return res.status(200).json(
-        new ApiResponse(200, { deletedImage: image }, "Image deleted successfully")
-    );
 }));
 
 export default router;

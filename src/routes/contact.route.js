@@ -22,7 +22,29 @@ const contactLimiter = rateLimit({
     }
 });
 
-// Apply rate limiting to the contact route
+// Debug middleware for development
+router.use((req, res, next) => {
+    if (process.env.NODE_ENV === 'development') {
+        console.log('Contact Route:', {
+            path: req.path,
+            method: req.method,
+            body: req.body,
+            headers: req.headers
+        });
+    }
+    next();
+});
+
+// Contact routes
 router.post('/send', contactLimiter, asyncHandler(contactController.sendContactForm.bind(contactController)));
+
+// Health check route for contact module
+router.get('/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        message: 'Contact module is running',
+        timestamp: new Date().toISOString()
+    });
+});
 
 export default router;

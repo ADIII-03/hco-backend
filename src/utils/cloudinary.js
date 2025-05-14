@@ -30,6 +30,12 @@ export const uploadOnCloudinary = async (localFilePath, options = {}) => {
         
         // File has been uploaded successfully
         console.log("File uploaded on cloudinary:", response.url);
+        
+        // Remove the locally saved temporary file
+        if (fs.existsSync(localFilePath)) {
+            fs.unlinkSync(localFilePath);
+        }
+        
         return response;
     } catch (error) {
         console.error("Cloudinary upload error:", error);
@@ -43,14 +49,40 @@ export const uploadOnCloudinary = async (localFilePath, options = {}) => {
 
 export const deleteFromCloudinary = async (publicId) => {
     try {
-        if (!publicId) return null;
+        if (!publicId) {
+            throw new Error("No public ID provided for deletion");
+        }
+
+        // First, check if the resource exists
+        try {
+            await cloudinary.api.resource(publicId);
+        } catch (error) {
+            if (error.http_code === 404) {
+                console.log("Resource not found in Cloudinary:", publicId);
+                return { result: 'not_found' };
+            }
+            throw error;
+        }
         
-        const response = await cloudinary.uploader.destroy(publicId);
-        console.log("File deleted from cloudinary:", response);
-        return response;
+        // If resource exists, delete it
+        const response = await cloudinary.uploader.destroy(publicId, {
+            invalidate: true,
+            resource_type: "image"
+        });
+        
+        if (response.result === 'ok') {
+            console.log("File deleted from Cloudinary:", publicId);
+            return response;
+        } else {
+            throw new Error(`Failed to delete from Cloudinary: ${response.result}`);
+        }
     } catch (error) {
-        console.error("Cloudinary delete error:", error);
-        return null;
+        console.error("Cloudinary delete error:", {
+            error: error.message,
+            publicId,
+            stack: error.stack
+        });
+        throw error;
     }
 };
 
