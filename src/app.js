@@ -6,6 +6,7 @@ import adminRouter from "./routes/admin.route.js";
 import galleryRouter from "./routes/gallery.route.js";
 import projectRouter from "./routes/project.routes.js";
 import donationRouter from "./routes/donation.routes.js";
+import contactRouter from "./routes/contact.route.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -68,6 +69,7 @@ app.use("/api/v1/admin", adminRouter);         // Admin routes (login, logout, e
 app.use("/api/v1/gallery", galleryRouter);     // Gallery routes
 app.use("/api/v1/projects", projectRouter);    // Project routes
 app.use("/api/v1/donation-details", donationRouter); // Donation routes
+app.use("/api/v1/contact", contactRouter);     // Contact routes
 
 // Error handling middleware
 app.use((err, req, res, next) => {
