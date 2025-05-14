@@ -16,13 +16,27 @@ dotenv.config();
 
 export const app = express();
 
+// Basic health check route (before all middleware)
+app.get("/api/v1/health", (req, res) => {
+    res.json({ status: "ok", message: "Server is running" });
+});
+
 // Middleware
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+// CORS Configuration
+const corsOrigin = process.env.NODE_ENV === 'production'
+    ? 'https://hc-opage.vercel.app'
+    : process.env.CORS_ORIGIN || 'http://localhost:5173';
+
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    origin: corsOrigin,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
 }));
+
 app.use(cookieParser());
 
 // Serve static files from uploads directory

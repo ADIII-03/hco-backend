@@ -11,9 +11,11 @@ const router = Router();
 // Get donation details
 router.get("/donation-details", async (req, res) => {
     try {
+        console.log("Fetching donation details...");
         let donationDetails = await DonationDetails.findOne();
         
         if (!donationDetails) {
+            console.log("No donation details found, creating default...");
             // Create default donation details if none exist
             donationDetails = await DonationDetails.create({
                 upiId: "hco@upi",
@@ -25,10 +27,16 @@ router.get("/donation-details", async (req, res) => {
             });
         }
         
+        console.log("Successfully fetched donation details");
         res.json({ success: true, data: donationDetails });
     } catch (error) {
         console.error("Error fetching donation details:", error);
-        res.status(500).json({ success: false, message: "Error fetching donation details" });
+        console.error("Stack trace:", error.stack);
+        res.status(500).json({ 
+            success: false, 
+            message: "Error fetching donation details",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 });
 
