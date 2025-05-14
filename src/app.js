@@ -25,34 +25,19 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(cookieParser());
 
-// CORS Configuration
-const allowedOrigins = [
-  'https://hc-opage.vercel.app',
-  'https://hco-backend.onrender.com',
-  'http://localhost:5173'
-];
-
-const corsOptions = {
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
-  exposedHeaders: ['Set-Cookie'],
-};
-
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+// CORS Configuration - MUST be before any routes
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'https://hc-opage.vercel.app');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 
 // Request Logging Middleware
 app.use((req, res, next) => {
@@ -127,5 +112,5 @@ const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
-  console.log(`CORS enabled for: ${allowedOrigins.join(", ")}`);
+  console.log(`CORS enabled for: https://hc-opage.vercel.app`);
 });
