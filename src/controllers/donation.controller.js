@@ -57,12 +57,22 @@ const uploadQRCode = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Donation details not found");
     }
 
-    const qrCode = await uploadOnCloudinary(qrCodeLocalPath);
+    // Delete old QR code from Cloudinary if it exists
+    if (donationDetails.qrPublicId) {
+        try {
+            await deleteFromCloudinary(donationDetails.qrPublicId);
+        } catch (error) {
+            console.error("Error deleting old QR code:", error);
+        }
+    }
+
+    const qrCode = await uploadOnCloudinary(qrCodeLocalPath, "hco/qr-codes");
     if (!qrCode) {
         throw new ApiError(400, "Error while uploading QR code");
     }
 
     donationDetails.qrCodeImage = qrCode.url;
+    donationDetails.qrPublicId = qrCode.public_id;
     await donationDetails.save();
 
     return res.status(200).json(
@@ -72,9 +82,9 @@ const uploadQRCode = asyncHandler(async (req, res) => {
 
 const deleteQRCode = asyncHandler(async (req, res) => {
     const { filename } = req.params;
-    
+
     if (!filename) {
-        throw new ApiError(400, "Filename is required");
+        throw new ApiError(400, "QR code filename is required");
     }
 
     let donationDetails = await DonationDetails.findOne();
@@ -82,19 +92,24 @@ const deleteQRCode = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Donation details not found");
     }
 
-    // Delete from Cloudinary if public_id exists
-    if (donationDetails.qrPublicId) {
-        await deleteFromCloudinary(donationDetails.qrPublicId);
+    // Extract public_id from the Cloudinary URL or stored public_id
+    const publicId = `hco/qr-codes/${filename}`;
+
+    try {
+        // Delete from Cloudinary
+        await deleteFromCloudinary(publicId);
+
+        // Update database
+        donationDetails.qrCodeImage = null;
+        donationDetails.qrPublicId = null;
+        await donationDetails.save();
+
+        return res.status(200).json(
+            new ApiResponse(200, donationDetails, "QR code deleted successfully")
+        );
+    } catch (error) {
+        throw new ApiError(500, "Error deleting QR code: " + error.message);
     }
-
-    // Update database
-    donationDetails.qrCodeImage = null;
-    donationDetails.qrPublicId = null;
-    await donationDetails.save();
-
-    return res.status(200).json(
-        new ApiResponse(200, donationDetails, "QR code deleted successfully")
-    );
 });
 
 export {

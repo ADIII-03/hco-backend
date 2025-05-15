@@ -1,7 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import fs from "fs"
 import dotenv from "dotenv"
-import { ApiError } from './ApiError.js';
 
 // Load environment variables
 dotenv.config();
@@ -51,18 +50,39 @@ export const uploadOnCloudinary = async (localFilePath, options = {}) => {
 export const deleteFromCloudinary = async (publicId) => {
     try {
         if (!publicId) {
-            throw new ApiError(400, "Public ID is required");
+            throw new Error("No public ID provided for deletion");
+        }
+
+        // First, check if the resource exists
+        try {
+            await cloudinary.api.resource(publicId);
+        } catch (error) {
+            if (error.http_code === 404) {
+                console.log("Resource not found in Cloudinary:", publicId);
+                return { result: 'not_found' };
+            }
+            throw error;
         }
         
-        const result = await cloudinary.uploader.destroy(publicId);
+        // If resource exists, delete it
+        const response = await cloudinary.uploader.destroy(publicId, {
+            invalidate: true,
+            resource_type: "image"
+        });
         
-        if (result.result !== 'ok') {
-            throw new ApiError(500, "Failed to delete image from cloud storage");
+        if (response.result === 'ok') {
+            console.log("File deleted from Cloudinary:", publicId);
+            return response;
+        } else {
+            throw new Error(`Failed to delete from Cloudinary: ${response.result}`);
         }
-        
-        return result;
     } catch (error) {
-        throw new ApiError(500, error?.message || "Error deleting image from cloud storage");
+        console.error("Cloudinary delete error:", {
+            error: error.message,
+            publicId,
+            stack: error.stack
+        });
+        throw error;
     }
 };
 
