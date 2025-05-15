@@ -30,7 +30,7 @@ class ContactController {
         const emailConfig = {
             service: 'gmail',
             auth: {
-                user: process.env.ADMIN_EMAIL,
+                user: decodeURIComponent(process.env.ADMIN_EMAIL),
                 pass: process.env.ADMIN_PASS
             },
             tls: {
@@ -254,4 +254,4 @@ class ContactController {
     }
 }
 
-export default new ContactController(); 
+export default new ContactController();
