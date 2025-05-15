@@ -2,7 +2,7 @@ import { DonationDetails } from "../models/donation.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 
 const getDonationDetails = asyncHandler(async (req, res) => {
     const donationDetails = await DonationDetails.findOne();
@@ -70,8 +70,36 @@ const uploadQRCode = asyncHandler(async (req, res) => {
     );
 });
 
+const deleteQRCode = asyncHandler(async (req, res) => {
+    const { filename } = req.params;
+    
+    if (!filename) {
+        throw new ApiError(400, "Filename is required");
+    }
+
+    let donationDetails = await DonationDetails.findOne();
+    if (!donationDetails) {
+        throw new ApiError(404, "Donation details not found");
+    }
+
+    // Delete from Cloudinary if public_id exists
+    if (donationDetails.qrPublicId) {
+        await deleteFromCloudinary(donationDetails.qrPublicId);
+    }
+
+    // Update database
+    donationDetails.qrCodeImage = null;
+    donationDetails.qrPublicId = null;
+    await donationDetails.save();
+
+    return res.status(200).json(
+        new ApiResponse(200, donationDetails, "QR code deleted successfully")
+    );
+});
+
 export {
     getDonationDetails,
     updateDonationDetails,
-    uploadQRCode
+    uploadQRCode,
+    deleteQRCode
 }; 
