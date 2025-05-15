@@ -21,6 +21,17 @@ export const app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+// Debug middleware to log all incoming requests
+app.use((req, res, next) => {
+    console.log('Incoming Request:', {
+        path: req.path,
+        fullUrl: req.originalUrl,
+        method: req.method,
+        timestamp: new Date().toISOString()
+    });
+    next();
+});
+
 // CORS Configuration
 const corsOrigins = process.env.CORS_ORIGIN?.split(',').map(origin => origin.trim()) || [];
 const isProduction = process.env.NODE_ENV === 'production';
@@ -46,7 +57,7 @@ app.use(cors({
         'X-Requested-With'
     ],
     exposedHeaders: ['Set-Cookie'],
-    maxAge: 600 // Cache preflight requests for 10 minutes
+    maxAge: 600
 }));
 
 app.use(cookieParser());
@@ -62,6 +73,33 @@ app.use((req, res, next) => {
     next();
 });
 
+// Mount routes with explicit prefixes
+const API_PREFIX = '/api/v1';
+
+// API Routes with logging
+app.use(`${API_PREFIX}/admin`, adminRouter);
+app.use(`${API_PREFIX}/gallery`, galleryRouter);
+app.use(`${API_PREFIX}/projects`, projectRouter);
+app.use(`${API_PREFIX}/donation-details`, donationRouter);
+
+// Mount contact routes with logging
+app.use(`${API_PREFIX}/contact`, contactRouter);
+console.log('Contact routes mounted at:', `${API_PREFIX}/contact`);
+
+// Test route for contact endpoint
+app.get(`${API_PREFIX}/contact-test`, (req, res) => {
+    res.json({
+        status: "ok",
+        message: "Contact route is accessible",
+        timestamp: new Date().toISOString(),
+        availableEndpoints: {
+            send: `${API_PREFIX}/contact/send`,
+            test: `${API_PREFIX}/contact/test`,
+            health: `${API_PREFIX}/contact/health`
+        }
+    });
+});
+
 // Root route
 app.get('/', (req, res) => {
     res.json({
@@ -70,18 +108,22 @@ app.get('/', (req, res) => {
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV,
         endpoints: {
-            health: '/api/v1/health',
-            projects: '/api/v1/projects',
-            gallery: '/api/v1/gallery',
-            donations: '/api/v1/donation-details',
-            admin: '/api/v1/admin',
-            contact: '/api/v1/contact'
+            contact: {
+                send: `${API_PREFIX}/contact/send`,
+                test: `${API_PREFIX}/contact/test`,
+                health: `${API_PREFIX}/contact/health`
+            },
+            health: `${API_PREFIX}/health`,
+            projects: `${API_PREFIX}/projects`,
+            gallery: `${API_PREFIX}/gallery`,
+            donations: `${API_PREFIX}/donation-details`,
+            admin: `${API_PREFIX}/admin`
         }
     });
 });
 
 // Health check route
-app.get("/api/v1/health", (req, res) => {
+app.get(`${API_PREFIX}/health`, (req, res) => {
     res.json({
         status: "ok",
         message: "Server is running",
@@ -92,23 +134,7 @@ app.get("/api/v1/health", (req, res) => {
 });
 
 // Serve static files from uploads directory
-app.use("/api/v1/uploads", express.static(path.join(__dirname, "uploads")));
-
-// API Routes
-app.use("/api/v1/admin", adminRouter);         // Admin routes
-app.use("/api/v1/gallery", galleryRouter);     // Gallery routes
-app.use("/api/v1/projects", projectRouter);    // Project routes
-app.use("/api/v1/donation-details", donationRouter); // Donation routes
-app.use("/api/v1/contact", contactRouter);     // Contact routes
-
-// Add a specific test route for contact
-app.get("/api/v1/contact-test", (req, res) => {
-    res.json({
-        status: "ok",
-        message: "Contact route is accessible",
-        timestamp: new Date().toISOString()
-    });
-});
+app.use(`${API_PREFIX}/uploads`, express.static(path.join(__dirname, "uploads")));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -116,8 +142,10 @@ app.use((err, req, res, next) => {
         message: err.message,
         stack: isProduction ? undefined : err.stack,
         path: req.path,
+        fullUrl: req.originalUrl,
         method: req.method,
-        origin: req.get('origin')
+        origin: req.get('origin'),
+        timestamp: new Date().toISOString()
     });
     
     res.status(err.statusCode || 500).json({
@@ -131,14 +159,23 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
     console.log('404 Not Found:', {
         path: req.path,
+        fullUrl: req.originalUrl,
         method: req.method,
-        origin: req.get('origin')
+        origin: req.get('origin'),
+        timestamp: new Date().toISOString()
     });
     res.status(404).json({
         success: false,
         message: 'Route not found',
-        path: req.path,
-        method: req.method
+        requestedPath: req.originalUrl,
+        method: req.method,
+        availableEndpoints: {
+            contact: {
+                send: `${API_PREFIX}/contact/send`,
+                test: `${API_PREFIX}/contact/test`,
+                health: `${API_PREFIX}/contact/health`
+            }
+        }
     });
 });
 

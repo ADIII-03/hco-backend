@@ -5,6 +5,17 @@ import rateLimit from 'express-rate-limit';
 
 const router = Router();
 
+// Debug middleware to log all requests to contact routes
+router.use((req, res, next) => {
+    console.log('Contact Route Accessed:', {
+        path: req.path,
+        fullPath: req.originalUrl,
+        method: req.method,
+        timestamp: new Date().toISOString()
+    });
+    next();
+});
+
 // Rate limiting configuration
 const contactLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour window
@@ -22,28 +33,16 @@ const contactLimiter = rateLimit({
     }
 });
 
-// Debug middleware for development
-router.use((req, res, next) => {
-    if (process.env.NODE_ENV === 'development') {
-        console.log('Contact Route:', {
-            path: req.path,
-            method: req.method,
-            body: req.body,
-            headers: req.headers
-        });
-    }
-    next();
-});
-
 // Contact routes
-router.post('/send', contactLimiter, (req, res, next) => {
-    console.log('Received contact form submission:', {
-        body: req.body,
+router.post('/send', contactLimiter, asyncHandler(async (req, res) => {
+    console.log('Contact form submission received:', {
         path: req.path,
-        method: req.method
+        method: req.method,
+        body: req.body
     });
-    return contactController.sendContactForm.bind(contactController)(req, res, next);
-});
+    
+    await contactController.sendContactForm(req, res);
+}));
 
 // Test route to verify contact endpoint is working
 router.get('/test', (req, res) => {
@@ -61,9 +60,9 @@ router.get('/health', (req, res) => {
         message: 'Contact module is running',
         timestamp: new Date().toISOString(),
         endpoints: {
-            send: '/send',
-            health: '/health',
-            test: '/test'
+            send: '/send - POST',
+            test: '/test - GET',
+            health: '/health - GET'
         }
     });
 });
