@@ -6,7 +6,7 @@ import adminRouter from "./routes/admin.route.js";
 import galleryRouter from "./routes/gallery.route.js";
 import projectRouter from "./routes/project.routes.js";
 import donationRouter from "./routes/donation.routes.js";
-import contactRouter from "./routes/contact.route.js";
+import contactRouter from "./routes/contact.routes.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
